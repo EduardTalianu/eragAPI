@@ -32,7 +32,7 @@ DEEPSEEK_API_KEY="your_deepseek_key"
 ## Usage
 ### Start the API Server
 ```bash
-python erag_API_v10.py serve --host 0.0.0.0 --port 11436
+python erag_API_v10.py serve
 ```
 Add `--tray` to enable system tray icon.
 
