@@ -32,17 +32,17 @@ DEEPSEEK_API_KEY="your_deepseek_key"
 ## Usage
 ### Start the API Server
 ```bash
-python erag_API_v10.py serve
+python eragAPI.py serve
 ```
 Add `--tray` to enable system tray icon.
 
 ### List Available Models
 ```bash
 # List all providers' models
-python erag_API_v10.py model list
+python eragAPI.py model list
 
 # Filter by provider
-python erag_API_v10.py model list --api groq
+python eragAPI.py model list --api groq
 ```
 
 ## API Endpoints
