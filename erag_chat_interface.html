@@ -1,0 +1,573 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>EragAPI Chat Interface</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .chat-container {
+            width: 90%;
+            max-width: 800px;
+            height: 90vh;
+            background: rgba(255, 255, 255, 0.95);
+            border-radius: 20px;
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1);
+            display: flex;
+            flex-direction: column;
+            backdrop-filter: blur(10px);
+        }
+
+        .chat-header {
+            background: linear-gradient(135deg, #3b82f6, #1d4ed8);
+            color: white;
+            padding: 20px;
+            border-radius: 20px 20px 0 0;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .chat-title {
+            font-size: 1.5rem;
+            font-weight: 600;
+        }
+
+        .model-selector {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .model-selector select {
+            padding: 8px 12px;
+            border: none;
+            border-radius: 8px;
+            background: rgba(255, 255, 255, 0.2);
+            color: white;
+            font-size: 0.9rem;
+        }
+
+        .model-selector select option {
+            background: #1d4ed8;
+            color: white;
+        }
+
+        .model-selector select optgroup {
+            background: #2563eb;
+            color: white;
+            font-weight: bold;
+        }
+
+        .chat-messages {
+            flex: 1;
+            padding: 20px;
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+        }
+
+        .message {
+            max-width: 70%;
+            padding: 12px 18px;
+            border-radius: 18px;
+            font-size: 0.95rem;
+            line-height: 1.4;
+            animation: fadeIn 0.3s ease-in;
+        }
+
+        .message.user {
+            background: linear-gradient(135deg, #3b82f6, #1d4ed8);
+            color: white;
+            align-self: flex-end;
+            border-bottom-right-radius: 6px;
+        }
+
+        .message.assistant {
+            background: #f1f5f9;
+            color: #334155;
+            align-self: flex-start;
+            border-bottom-left-radius: 6px;
+            border: 1px solid #e2e8f0;
+        }
+
+        .message.system {
+            background: #fef3c7;
+            color: #92400e;
+            align-self: center;
+            font-style: italic;
+            font-size: 0.85rem;
+        }
+
+        .typing-indicator {
+            display: none;
+            align-self: flex-start;
+            background: #f1f5f9;
+            padding: 12px 18px;
+            border-radius: 18px;
+            border-bottom-left-radius: 6px;
+        }
+
+        .typing-indicator .dots {
+            display: flex;
+            gap: 3px;
+        }
+
+        .typing-indicator .dot {
+            width: 6px;
+            height: 6px;
+            background: #64748b;
+            border-radius: 50%;
+            animation: typing 1.4s infinite;
+        }
+
+        .typing-indicator .dot:nth-child(2) { animation-delay: 0.2s; }
+        .typing-indicator .dot:nth-child(3) { animation-delay: 0.4s; }
+
+        .chat-input-area {
+            padding: 20px;
+            background: #f8fafc;
+            border-radius: 0 0 20px 20px;
+            border-top: 1px solid #e2e8f0;
+        }
+
+        .input-container {
+            display: flex;
+            gap: 10px;
+            align-items: flex-end;
+        }
+
+        .chat-input {
+            flex: 1;
+            padding: 12px 16px;
+            border: 2px solid #e2e8f0;
+            border-radius: 12px;
+            font-size: 1rem;
+            resize: none;
+            min-height: 44px;
+            max-height: 120px;
+            font-family: inherit;
+            transition: border-color 0.2s ease;
+        }
+
+        .chat-input:focus {
+            outline: none;
+            border-color: #3b82f6;
+        }
+
+        .send-button {
+            padding: 12px 20px;
+            background: linear-gradient(135deg, #3b82f6, #1d4ed8);
+            color: white;
+            border: none;
+            border-radius: 12px;
+            cursor: pointer;
+            font-size: 1rem;
+            font-weight: 500;
+            transition: transform 0.1s ease;
+        }
+
+        .send-button:hover {
+            transform: translateY(-1px);
+        }
+
+        .send-button:disabled {
+            background: #94a3b8;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .settings-panel {
+            display: none;
+            position: absolute;
+            top: 70px;
+            right: 20px;
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+            padding: 20px;
+            z-index: 1000;
+        }
+
+        .settings-button {
+            background: rgba(255, 255, 255, 0.2);
+            border: none;
+            color: white;
+            padding: 8px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 1.2rem;
+        }
+
+        .setting-group {
+            margin-bottom: 15px;
+        }
+
+        .setting-group label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: 500;
+            color: #374151;
+        }
+
+        .setting-group input, .setting-group select {
+            width: 100%;
+            padding: 8px;
+            border: 1px solid #d1d5db;
+            border-radius: 6px;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        @keyframes typing {
+            0%, 60%, 100% { transform: translateY(0); }
+            30% { transform: translateY(-10px); }
+        }
+
+        /* Mobile responsiveness */
+        @media (max-width: 768px) {
+            .chat-container {
+                width: 95%;
+                height: 95vh;
+            }
+
+            .message {
+                max-width: 85%;
+            }
+
+            .model-selector {
+                flex-direction: column;
+                gap: 5px;
+                font-size: 0.8rem;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="chat-container">
+        <div class="chat-header">
+            <div class="chat-title">EragAPI Chat</div>
+            <div class="model-selector">
+                <label for="model-select">Model:</label>
+                <select id="model-select">
+                    <option value="">Loading models...</option>
+                </select>
+                <button class="settings-button" onclick="toggleSettings()">⚙️</button>
+            </div>
+        </div>
+
+        <div class="settings-panel" id="settings-panel">
+            <div class="setting-group">
+                <label for="api-url">API URL:</label>
+                <input type="text" id="api-url" value="http://127.0.0.1:11436">
+            </div>
+            <div class="setting-group">
+                <label for="temperature">Temperature:</label>
+                <input type="range" id="temperature" min="0" max="2" step="0.1" value="0.7">
+                <span id="temp-value">0.7</span>
+            </div>
+            <div class="setting-group">
+                <label for="max-tokens">Max Tokens:</label>
+                <input type="number" id="max-tokens" min="1" max="4000" value="1000">
+            </div>
+        </div>
+
+        <div class="chat-messages" id="chat-messages">
+            <div class="message system">
+                Welcome to EragAPI Chat! Select a model and start chatting.
+            </div>
+        </div>
+
+        <div class="typing-indicator" id="typing-indicator">
+            <div class="dots">
+                <div class="dot"></div>
+                <div class="dot"></div>
+                <div class="dot"></div>
+            </div>
+        </div>
+
+        <div class="chat-input-area">
+            <div class="input-container">
+                <textarea 
+                    class="chat-input" 
+                    id="chat-input" 
+                    placeholder="Type your message here..."
+                    rows="1"></textarea>
+                <button class="send-button" id="send-button" onclick="sendMessage()">
+                    Send
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let messages = [];
+        let isGenerating = false;
+        let availableModels = {};
+
+        // Load available models on page load
+        async function loadModels() {
+            const apiUrl = document.getElementById('api-url').value;
+            const modelSelect = document.getElementById('model-select');
+            
+            try {
+                // Get models for each provider
+                const providers = ['groq', 'gemini', 'cohere', 'deepseek', 'ollama'];
+                modelSelect.innerHTML = '<option value="">Loading models...</option>';
+                
+                let allModels = [];
+                
+                for (const provider of providers) {
+                    try {
+                        const response = await fetch(`${apiUrl}/api/models/${provider}`);
+                        if (response.ok) {
+                            const data = await response.json();
+                            const models = data.models || [];
+                            
+                            for (const model of models) {
+                                allModels.push({
+                                    value: `${provider}-${model}`,
+                                    display: `${provider.toUpperCase()}: ${model}`,
+                                    provider: provider
+                                });
+                            }
+                            availableModels[provider] = models;
+                        }
+                    } catch (error) {
+                        console.log(`Could not load models for ${provider}:`, error.message);
+                        // Add default model if API call fails
+                        const defaultModels = {
+                            'groq': ['mixtral-8x7b-32768'],
+                            'gemini': ['gemini-pro'],
+                            'cohere': ['command'],
+                            'deepseek': ['deepseek-chat', 'deepseek-reasoner'],
+                            'ollama': ['llama2']
+                        };
+                        
+                        if (defaultModels[provider]) {
+                            for (const model of defaultModels[provider]) {
+                                allModels.push({
+                                    value: `${provider}-${model}`,
+                                    display: `${provider.toUpperCase()}: ${model} (default)`,
+                                    provider: provider
+                                });
+                            }
+                            availableModels[provider] = defaultModels[provider];
+                        }
+                    }
+                }
+                
+                // Clear loading message and populate models
+                modelSelect.innerHTML = '';
+                
+                if (allModels.length === 0) {
+                    modelSelect.innerHTML = '<option value="">No models available</option>';
+                    addMessage('No models could be loaded. Make sure your EragAPI server is running and accessible.', 'system');
+                } else {
+                    // Group models by provider
+                    const groupedModels = {};
+                    allModels.forEach(model => {
+                        if (!groupedModels[model.provider]) {
+                            groupedModels[model.provider] = [];
+                        }
+                        groupedModels[model.provider].push(model);
+                    });
+                    
+                    // Add models grouped by provider
+                    Object.keys(groupedModels).forEach(provider => {
+                        const optgroup = document.createElement('optgroup');
+                        optgroup.label = provider.toUpperCase();
+                        
+                        groupedModels[provider].forEach(model => {
+                            const option = document.createElement('option');
+                            option.value = model.value;
+                            option.textContent = model.display.replace(`${provider.toUpperCase()}: `, '');
+                            optgroup.appendChild(option);
+                        });
+                        
+                        modelSelect.appendChild(optgroup);
+                    });
+                    
+                    // Select first available model
+                    modelSelect.value = allModels[0].value;
+                    addMessage(`Loaded ${allModels.length} models from ${Object.keys(groupedModels).length} providers. Ready to chat!`, 'system');
+                }
+                
+            } catch (error) {
+                console.error('Error loading models:', error);
+                modelSelect.innerHTML = '<option value="">Error loading models</option>';
+                addMessage('Failed to load models. Please check your API connection and try refreshing the page.', 'system');
+            }
+        }
+
+        // Auto-resize textarea
+        const chatInput = document.getElementById('chat-input');
+        chatInput.addEventListener('input', function() {
+            this.style.height = 'auto';
+            this.style.height = Math.min(this.scrollHeight, 120) + 'px';
+        });
+
+        // Send message on Enter (Shift+Enter for new line)
+        chatInput.addEventListener('keydown', function(e) {
+            if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                sendMessage();
+            }
+        });
+
+        // Temperature slider update
+        document.getElementById('temperature').addEventListener('input', function() {
+            document.getElementById('temp-value').textContent = this.value;
+        });
+
+        // Reload models when API URL changes
+        document.getElementById('api-url').addEventListener('change', function() {
+            loadModels();
+        });
+
+        function toggleSettings() {
+            const panel = document.getElementById('settings-panel');
+            panel.style.display = panel.style.display === 'block' ? 'none' : 'block';
+        }
+
+        // Close settings when clicking outside
+        document.addEventListener('click', function(e) {
+            const panel = document.getElementById('settings-panel');
+            const button = document.querySelector('.settings-button');
+            if (!panel.contains(e.target) && !button.contains(e.target)) {
+                panel.style.display = 'none';
+            }
+        });
+
+        function addMessage(content, role) {
+            const messagesContainer = document.getElementById('chat-messages');
+            const messageDiv = document.createElement('div');
+            messageDiv.className = `message ${role}`;
+            messageDiv.textContent = content;
+            messagesContainer.appendChild(messageDiv);
+            messagesContainer.scrollTop = messagesContainer.scrollHeight;
+        }
+
+        function showTypingIndicator() {
+            document.getElementById('typing-indicator').style.display = 'block';
+            const messagesContainer = document.getElementById('chat-messages');
+            messagesContainer.scrollTop = messagesContainer.scrollHeight;
+        }
+
+        function hideTypingIndicator() {
+            document.getElementById('typing-indicator').style.display = 'none';
+        }
+
+        async function sendMessage() {
+            if (isGenerating) return;
+
+            const input = document.getElementById('chat-input');
+            const message = input.value.trim();
+            if (!message) return;
+
+            const sendButton = document.getElementById('send-button');
+            const modelSelect = document.getElementById('model-select');
+            const selectedModel = modelSelect.value;
+            
+            if (!selectedModel) {
+                addMessage('Please select a model before sending a message.', 'system');
+                return;
+            }
+
+            const apiUrl = document.getElementById('api-url').value;
+            const temperature = parseFloat(document.getElementById('temperature').value);
+            const maxTokens = parseInt(document.getElementById('max-tokens').value);
+
+            // Add user message
+            addMessage(message, 'user');
+            messages.push({ role: 'user', content: message });
+
+            // Clear input and disable send button
+            input.value = '';
+            input.style.height = 'auto';
+            sendButton.disabled = true;
+            sendButton.textContent = 'Sending...';
+            isGenerating = true;
+
+            showTypingIndicator();
+
+            try {
+                const response = await fetch(`${apiUrl}/api/chat`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        model: selectedModel, // Fixed: use selectedModel instead of undefined fullModelName
+                        messages: messages,
+                        temperature: temperature,
+                        max_tokens: maxTokens,
+                        stream: false
+                    })
+                });
+
+                hideTypingIndicator();
+
+                if (!response.ok) {
+                    const errorData = await response.json();
+                    throw new Error(errorData.detail || `HTTP ${response.status}`);
+                }
+
+                const data = await response.json();
+                const assistantMessage = data.message;
+                
+                addMessage(assistantMessage, 'assistant');
+                messages.push({ role: 'assistant', content: assistantMessage });
+
+            } catch (error) {
+                hideTypingIndicator();
+                addMessage(`Error: ${error.message}`, 'system');
+                console.error('Error:', error);
+            } finally {
+                sendButton.disabled = false;
+                sendButton.textContent = 'Send';
+                isGenerating = false;
+                input.focus();
+            }
+        }
+
+        function clearChat() {
+            messages = [];
+            const messagesContainer = document.getElementById('chat-messages');
+            messagesContainer.innerHTML = '<div class="message system">Chat cleared. Start a new conversation!</div>';
+            console.log('Chat history cleared');
+        }
+
+        // Add clear chat functionality with double-click on title
+        document.querySelector('.chat-title').addEventListener('dblclick', function() {
+            if (confirm('Clear chat history?')) {
+                clearChat();
+            }
+        });
+
+        // Focus on input when page loads and load models
+        window.addEventListener('load', function() {
+            document.getElementById('chat-input').focus();
+            loadModels();
+        });
+    </script>
+</body>
+</html>

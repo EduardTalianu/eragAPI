@@ -8,6 +8,7 @@ import signal
 import asyncio
 from fastapi import FastAPI, HTTPException
 from fastapi.responses import StreamingResponse
+from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from dotenv import load_dotenv
 
@@ -185,6 +186,15 @@ class EragAPI:
 
 app = FastAPI(title="EragAPI", version="0.1.0")
 
+# Add CORS middleware
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],  # In production, replace with your frontend URL
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
 class ChatRequest(BaseModel):
     model: str
     messages: list
@@ -199,10 +209,36 @@ class GenerateRequest(BaseModel):
     temperature: float = 0.7
     max_tokens: int = None
 
+def parse_model_string(model_string):
+    """Parse model string in format 'provider-model_name' where model_name may contain hyphens"""
+    # Known providers
+    providers = ["groq", "gemini", "cohere", "deepseek", "ollama"]
+    
+    for provider in providers:
+        if model_string.startswith(provider + "-"):
+            # Extract the model name after the provider prefix
+            model_name = model_string[len(provider) + 1:]
+            return provider, model_name
+    
+    # If no known provider found, try to split by first hyphen as fallback
+    parts = model_string.split("-", 1)
+    if len(parts) == 2:
+        return parts[0], parts[1]
+    return model_string, None
+
 @app.post("/api/chat")
 async def chat_endpoint(request: ChatRequest):
     try:
-        erag = EragAPI(request.model.split("-")[0], request.model)
+        # Parse the model string properly
+        provider, model_name = parse_model_string(request.model)
+        
+        if not model_name:
+            raise HTTPException(400, f"Invalid model format: {request.model}")
+        
+        if provider not in EragAPI.CLIENTS:
+            raise HTTPException(400, f"Unknown provider: {provider}")
+        
+        erag = EragAPI(provider, model_name)
         
         if request.stream:
             def stream_generator():
@@ -217,7 +253,16 @@ async def chat_endpoint(request: ChatRequest):
 @app.post("/api/generate")
 async def generate_endpoint(request: GenerateRequest):
     try:
-        erag = EragAPI(request.model.split("-")[0], request.model)
+        # Parse the model string properly
+        provider, model_name = parse_model_string(request.model)
+        
+        if not model_name:
+            raise HTTPException(400, f"Invalid model format: {request.model}")
+        
+        if provider not in EragAPI.CLIENTS:
+            raise HTTPException(400, f"Unknown provider: {provider}")
+        
+        erag = EragAPI(provider, model_name)
         
         if request.stream:
             def stream_generator():
@@ -226,6 +271,31 @@ async def generate_endpoint(request: GenerateRequest):
             return StreamingResponse(stream_generator(), media_type="text/event-stream")
         
         return {"response": erag.complete(request.prompt, request.temperature, request.max_tokens)}
+    except Exception as e:
+        raise HTTPException(500, str(e))
+
+@app.get("/api/models/{provider}")
+async def get_models_endpoint(provider: str):
+    """Get available models for a specific provider"""
+    try:
+        if provider not in EragAPI.CLIENTS:
+            raise HTTPException(404, f"Provider '{provider}' not found")
+        
+        models = get_available_models(provider)
+        return {"provider": provider, "models": models}
+    except Exception as e:
+        raise HTTPException(500, str(e))
+
+@app.get("/api/models")
+async def get_all_models_endpoint():
+    """Get available models for all providers"""
+    try:
+        all_models = {}
+        for provider in EragAPI.CLIENTS.keys():
+            models = get_available_models(provider)
+            if models:  # Only include providers that have models
+                all_models[provider] = models
+        return {"models": all_models}
     except Exception as e:
         raise HTTPException(500, str(e))
 
@@ -250,16 +320,6 @@ def start_server(host, port, tray=False):
         create_tray_icon()
     else:
         uvicorn.run(app, host=host, port=port)
-
-async def get_cohere_models():
-    try:
-        client = cohere.AsyncClient(api_key=os.getenv("CO_API_KEY"))
-        response = await client.models.list()
-        # Filter models that support chat by checking if 'chat' is in endpoints
-        return [model.name for model in response.models if 'chat' in model.endpoints]
-    except Exception as e:
-        print(f"Error listing Cohere models: {str(e)}")
-        return []
 
 def get_available_models(api_type):
     try:
@@ -291,7 +351,10 @@ def get_available_models(api_type):
             if not os.getenv("CO_API_KEY"):
                 print("CO_API_KEY not found in environment")
                 return []
-            return asyncio.run(get_cohere_models())
+            # Synchronous version for Cohere
+            client = cohere.Client(api_key=os.getenv("CO_API_KEY"))
+            response = client.models.list()
+            return [model.name for model in response.models if 'chat' in model.endpoints]
         
         elif api_type == "deepseek":
             if not os.getenv("DEEPSEEK_API_KEY"):
